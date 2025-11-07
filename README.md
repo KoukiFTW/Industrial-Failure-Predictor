@@ -1,272 +1,284 @@
-project:
-  title: "Industrial Failure Predictor (Remaining Useful Life Prediction)"
-  tagline: "Predictive Maintenance with CMAPSS, Feature Engineering, XGBoost, and a Streamlit Dashboard"
-  summary: >
-    Predict when a machine will fail before it actually happens using real engine
-    sensor data and machine learning. This project trains a model on NASA’s
-    CMAPSS FD001 dataset to estimate Remaining Useful Life (RUL) per engine unit
-    and serves an interactive Streamlit app for visualization and CSV exports.
+# 🏭 Industrial Failure Predictor (Remaining Useful Life Prediction)
+### *Predictive Maintenance with CMAPSS, Feature Engineering, XGBoost, and a Streamlit Dashboard*
 
-overview:
-  problem_statement: >
-    Unexpected machine failures cause downtime, costs, and safety risks. Predictive
-    maintenance forecasts failures in advance so maintenance can be scheduled early.
-  what_this_project_does: >
-    Loads multivariate time-series sensor data, engineers temporal features (lags,
-    rolling stats, slopes), trains a regression model (XGBoost) to predict RUL,
-    and exposes an interactive dashboard to rank units by risk and drill down.
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)]()
+[![Framework](https://img.shields.io/badge/Framework-Streamlit-red?logo=streamlit)]()
+[![License](https://img.shields.io/badge/License-MIT-green)]()
+[![Model](https://img.shields.io/badge/Model-XGBoost-orange?logo=xgboost)]()
+[![Author](https://img.shields.io/badge/Author-Abdul-black)](https://github.com/KoukiFTW)
 
-objectives:
-  - Load and understand NASA CMAPSS FD001 (turbofan) dataset.
-  - Engineer predictive time-series features from 21 sensors per cycle.
-  - Train and validate an RUL regressor with GroupKFold (no leakage).
-  - Save artifacts (model + scaler) for portable inference.
-  - Provide a Streamlit dashboard for predictions, risk bands, and charts.
+---
 
-dataset:
-  name: "NASA CMAPSS (FD001)"
-  source: "NASA Prognostics Data Repository"
-  files:
-    - train_FD001.txt: "Training data; engines run to failure"
-    - test_FD001.txt: "Test data; truncated before failure"
-    - RUL_FD001.txt: "True RUL for each engine in test split"
-  schema:
-    columns:
-      - unit: "Engine ID"
-      - cycle: "Time step (operating cycle)"
-      - op1..op3: "Operating condition variables"
-      - s1..s21: "Sensor measurements"
-  label_definition: "RUL = max(cycle per unit) - current_cycle"
-  notes: "Space-delimited files without headers."
+## 🧩 Overview
 
-project_structure: |
-  industrial-failure-predictor/
-  ├── data/
-  │   └── raw/                  <- CMAPSS dataset files (train/test/RUL)
-  ├── models/                   <- Trained model + preprocessing artifacts
-  ├── src/                      <- Core source code
-  │   ├── dataload.py           <- File loading & column naming
-  │   ├── label.py              <- RUL labeling
-  │   ├── features.py           <- Feature engineering (lags/rolling/slopes)
-  │   ├── train_baseline.py     <- Baseline (Ridge/XGBoost) without heavy features
-  │   ├── train_fe.py           <- Full feature engineering + XGBoost
-  │   ├── infer_fe.py           <- Inference for latest RUL per unit
-  │   └── utils.py              <- (optional) helpers
-  ├── app/
-  │   └── streamlit_app.py      <- Streamlit dashboard
-  ├── notebooks/                <- EDA / experimentation
-  ├── tests/                    <- Lightweight checks
-  ├── requirements.txt
-  └── README.md
+**Industrial Failure Predictor** forecasts machine failures **before** they happen using **NASA’s CMAPSS FD001 turbofan dataset**.  
+It estimates each engine’s **Remaining Useful Life (RUL)** through feature engineering and machine learning, then visualizes results in a sleek **Streamlit dashboard**.
 
-setup:
-  prerequisites:
-    os: "Windows (tested)"
-    python: "3.11+ recommended"
-    tools:
-      - "Git"
-      - "FFmpeg (not required unless adding audio later)"
-  commands:
-    create_env: |
-      py -m venv .venv
-      .\.venv\Scripts\activate
-      python -m pip install --upgrade pip
-    install_requirements: |
-      pip install -r requirements.txt
-    dataset_placement: |
-      Place files in: data/raw/
-        - train_FD001.txt
-        - test_FD001.txt
-        - RUL_FD001.txt
+### 🧠 Problem Statement
+Unexpected machine breakdowns cause downtime, costs, and safety risks.  
+This project applies **predictive maintenance** to anticipate failures early and schedule maintenance proactively.
 
-requirements_txt_example: |
-  pandas
-  numpy
-  scikit-learn
-  xgboost
-  joblib
-  matplotlib
-  plotly
-  streamlit
-  pyarrow
+### 🚀 What This Project Does
+- Loads **multivariate time-series sensor data**
+- Engineers temporal features (lags, rolling stats, slopes)
+- Trains an **XGBoost regression model** for RUL prediction
+- Provides an **interactive Streamlit dashboard** for analysis, ranking, and CSV exports
 
-how_to_use:
-  training:
-    description: "Train the feature-engineered XGBoost model and save artifacts."
-    commands: |
-      cd src
-      python train_fe.py
-    outputs: |
-      models/
-        - xgb_rul_fd001.json
-        - preproc.joblib
-  run_app:
-    description: "Launch the Streamlit dashboard."
-    commands: |
-      cd ..
-      streamlit run app/streamlit_app.py
-    url: "http://localhost:8501"
-  typical_workflow:
-    - "Confirm dataset files in data/raw/"
-    - "Train model (saves artifacts)"
-    - "Start app and explore fleet status"
-    - "Download predictions.csv for reporting"
+---
 
-dashboard_features:
-  - "Upload CMAPSS-like file or use sample"
-  - "Per-unit predicted RUL and color-coded risk bands"
-  - "Drilldown: RUL trend over cycles for a selected unit"
-  - "Optional overlay of raw sensor series"
-  - "CSV download of predictions"
+## 🎯 Objectives
+- Load and explore NASA CMAPSS FD001 dataset  
+- Engineer predictive time-series features  
+- Train and validate an RUL regressor with GroupKFold (no leakage)  
+- Save model and preprocessing artifacts  
+- Serve an interactive Streamlit dashboard for insights  
 
-risk_bands:
-  thresholds:
-    critical: "RUL <= 30 → RED"
-    warning: "30 < RUL <= 75 → AMBER"
-    healthy: "RUL > 75 → GREEN"
-  note: "Adjust these thresholds per domain requirements."
+---
 
-code_explanations:
-  dataload_py: >
-    Loads space-delimited files, assigns CMAPSS column names: unit, cycle,
-    op1..op3, s1..s21. Provides split-specific loaders for train/test/RUL.
-  label_py: >
-    Computes per-row Remaining Useful Life: max(cycle within unit) - cycle.
-  features_py: >
-    Adds cycle normalization; temporal features: lag(t-1,t-3,t-5), rolling stats
-    (mean/std over 5, min/max over 10), and slope over last 10 cycles via a small
-    OLS fit. Drops initial rows that lack full windows.
-  train_baseline_py: >
-    Baseline training using current sensors + cycle_norm only (Ridge or XGBoost)
-    with GroupKFold by unit. Produces quick sanity metrics.
-  train_fe_py: >
-    Full feature engineering + XGBoost training with early stopping and
-    GroupKFold by unit. Saves best model and preprocessing artifacts (scaler,
-    feature list) for inference consistency.
-  infer_fe_py: >
-    Loads artifacts, rebuilds features on new data, scales inputs aligned to
-    training features, predicts RUL, then returns the latest cycle per unit,
-    sorted by lowest predicted RUL (most urgent first).
-  streamlit_app_py: >
-    Simple UI to load data, run the feature pipeline + model, display a fleet
-    status table with risk bands, and plot RUL over time. Includes CSV export.
+## 📦 Dataset: NASA CMAPSS (FD001)
 
-model_details:
-  algorithm: "XGBoost Regressor (objective: reg:squarederror)"
-  validation: "GroupKFold(n_splits=5) by unit to avoid leakage across time series."
-  metrics:
-    - "RMSE (Root Mean Squared Error)"
-    - "MAE (Mean Absolute Error)"
-  features_engineered:
-    lags: ["t-1", "t-3", "t-5"]
-    rolling: ["mean5", "std5", "min10", "max10"]
-    slopes: ["slope over last 10 cycles via OLS"]
-    global: ["cycle_norm", "op1..op3"]
-  artifact_paths:
-    model: "models/xgb_rul_fd001.json"
-    preproc: "models/preproc.joblib"
+| File | Description |
+|------|--------------|
+| `train_FD001.txt` | Training data; engines run to failure |
+| `test_FD001.txt`  | Test data; truncated before failure |
+| `RUL_FD001.txt`   | True RUL for each test engine |
 
-performance_example:
-  cross_validation_results:
-    fold_1: { RMSE: 18.2, MAE: 13.9 }
-    fold_2: { RMSE: 17.8, MAE: 14.2 }
-    fold_3: { RMSE: 18.0, MAE: 13.7 }
-    fold_4: { RMSE: 17.5, MAE: 13.5 }
-    fold_5: { RMSE: 18.1, MAE: 14.0 }
-    average: { RMSE: "17.9 ± 0.3", MAE: "13.9 ± 0.3" }
-  note: "Numbers are representative; your results may vary slightly by run."
+**Schema**
 
-examples:
-  fleet_status_table:
-    columns: ["unit", "cycle", "RUL_pred", "risk"]
-    sample_rows:
-      - [3, 115, 22.1, "RED"]
-      - [5, 87, 61.3, "AMBER"]
-      - [7, 140, 124.9, "GREEN"]
-  interpretation: >
-    Units with the lowest predicted RUL should be prioritized for inspection/
-    maintenance. Use the drilldown charts to confirm sensor degradation trends.
+| Column | Description |
+|---------|-------------|
+| unit | Engine ID |
+| cycle | Time step (operating cycle) |
+| op1..op3 | Operating conditions |
+| s1..s21 | Sensor measurements |
 
-troubleshooting:
-  - issue: "FileNotFoundError for train_FD001.txt"
-    fix: "Ensure files are in data/raw/ and path logic in dataload.py uses 'data/raw'."
-  - issue: "mean_squared_error got unexpected keyword 'squared'"
-    fix: "If using older scikit-learn, compute RMSE as sqrt(MSE) manually."
-  - issue: "Streamlit warnings: ScriptRunContext missing"
-    fix: "Always launch with: streamlit run app/streamlit_app.py"
-  - issue: "No feature overlap"
-    fix: "Make sure file has columns: unit, cycle, op1..op3, s1..s21 (space or comma-delimited)."
+🧾 **Label Definition:**  
+> RUL = max(cycle per unit) - current_cycle  
 
-technologies:
-  language: "Python 3.x"
-  libraries:
-    - pandas
-    - numpy
-    - scikit-learn
-    - xgboost
-    - joblib
-    - matplotlib
-    - plotly
-    - streamlit
-  environment: "Windows"
-  version_control: "Git + GitHub"
+📎 Files are **space-delimited** without headers.
 
-ml_concepts:
-  - "Time-series feature engineering with lags/rolling windows"
-  - "Grouped cross-validation to prevent leakage across units"
-  - "Tabular regression with gradient boosting (XGBoost)"
-  - "Standardization for model stability"
-  - "Business mapping: RUL → maintenance risk bands"
+---
 
-deployment:
-  optional_huggingface_spaces:
-    steps:
-      - "Create a new Space at https://huggingface.co/spaces"
-      - "SDK: Streamlit, Visibility: Public"
-      - "Connect your GitHub repo"
-      - "Default command will run: streamlit run app/streamlit_app.py"
-    benefit: "Shareable public URL for portfolio/recruiters."
+## 🗂️ Project Structure
 
-improvements:
-  - "Support CMAPSS FD002–FD004 (multi-condition & mode)"
-  - "SHAP explainability for sensor/feature importance"
-  - "Conformal prediction for uncertainty intervals"
-  - "Asymmetric loss (penalize under-prediction)"
-  - "Alerting pipeline (email/Slack) for RED units"
-  - "Sequence models (LSTM/Transformers) for comparison"
+industrial-failure-predictor/
+├── data/
+│ └── raw/ <- CMAPSS dataset files
+├── models/ <- Trained model & preprocessing artifacts
+├── src/
+│ ├── dataload.py <- File loading & column naming
+│ ├── label.py <- RUL labeling
+│ ├── features.py <- Feature engineering
+│ ├── train_baseline.py <- Baseline Ridge/XGBoost
+│ ├── train_fe.py <- Full feature + XGBoost training
+│ ├── infer_fe.py <- RUL inference
+│ └── utils.py <- Helpers
+├── app/
+│ └── streamlit_app.py <- Streamlit dashboard
+├── notebooks/ <- EDA / experiments
+├── tests/
+├── requirements.txt
+└── README.md
 
-contributing:
-  guidelines: >
-    This is a portfolio project; feel free to fork and open PRs. Keep commits
-    atomic and include a brief description. Please avoid committing large raw data.
+yaml
+Copy code
 
-author:
-  name: "Abdul"
-  github: "https://github.com/KoukiFTW"
-  role: "Computer Science Graduate"
-  project_type: "Solo Machine Learning Portfolio Project"
-  os: "Windows"
+---
 
-license:
-  type: "MIT"
-  text: |
-    MIT License © 2025 Abdul
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the “Software”), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
-    The above copyright notice and this permission notice shall
-    be included in all copies or substantial portions of the Software.
-    THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND.
+## ⚙️ Setup & Installation
 
-acknowledgments:
-  - "NASA Prognostics Data Repository (CMAPSS dataset)"
-  - "scikit-learn, XGBoost, pandas, Streamlit open-source teams"
-  - "The broader data science community for educational resources"
+### 🧰 Prerequisites
+- **OS:** Windows (tested)
+- **Python:** 3.11+
+- **Tools:** Git, optional FFmpeg
 
-badges:
-  suggestion: >
-    Consider adding GitHub shields (e.g., Python version, license, stars) at the top
-    of README for polish.
+### 🔧 Create Environment
+```bash
+py -m venv .venv
+.\.venv\Scripts\activate
+python -m pip install --upgrade pip
+📦 Install Requirements
+bash
+Copy code
+pip install -r requirements.txt
+Example requirements.txt:
+
+nginx
+Copy code
+pandas
+numpy
+scikit-learn
+xgboost
+joblib
+matplotlib
+plotly
+streamlit
+pyarrow
+📂 Dataset Placement
+bash
+Copy code
+data/raw/
+  ├── train_FD001.txt
+  ├── test_FD001.txt
+  └── RUL_FD001.txt
+🧠 How to Use
+🏋️ Train Model
+bash
+Copy code
+cd src
+python train_fe.py
+Artifacts saved to:
+
+pgsql
+Copy code
+models/
+  ├── xgb_rul_fd001.json
+  └── preproc.joblib
+💻 Run Dashboard
+bash
+Copy code
+cd ..
+streamlit run app/streamlit_app.py
+Open in browser: http://localhost:8501
+
+🔄 Typical Workflow
+Confirm dataset files in data/raw/
+
+Train model → saves artifacts
+
+Launch app → explore fleet status
+
+Export results as CSV
+
+📊 Dashboard Features
+✅ Upload CMAPSS-like file or use sample
+✅ View per-unit predicted RUL with risk bands
+✅ Drilldown plots: RUL over cycles per unit
+✅ Overlay raw sensor signals
+✅ CSV download of predictions
+
+🚨 Risk Bands
+Band	Threshold	Color
+Critical	RUL ≤ 30	🔴 Red
+Warning	30 < RUL ≤ 75	🟠 Amber
+Healthy	RUL > 75	🟢 Green
+
+Adjust thresholds per use case or industry standard.
+
+🧬 Code Explanations
+File	Purpose
+dataload.py	Loads CMAPSS files, assigns column names, handles train/test/RUL splits.
+label.py	Computes Remaining Useful Life = max(cycle) - cycle.
+features.py	Adds normalized cycle, lag (t-1,t-3,t-5), rolling (mean/std/min/max), slope features.
+train_baseline.py	Baseline Ridge/XGBoost model with minimal features.
+train_fe.py	Full feature engineering + XGBoost training with GroupKFold.
+infer_fe.py	Loads artifacts, rebuilds features, predicts latest RUL per unit.
+streamlit_app.py	Dashboard to visualize predictions, risk bands, and trends.
+
+🧮 Model Details
+Setting	Description
+Algorithm	XGBoost Regressor (reg:squarederror)
+Validation	GroupKFold (5 splits by engine unit)
+Metrics	RMSE, MAE
+Features	Lag (t-1,t-3,t-5), Rolling (mean/std/min/max), Slopes (OLS over 10 cycles), op1–op3, cycle_norm
+Artifacts	models/xgb_rul_fd001.json, models/preproc.joblib
+
+📈 Example Performance
+Fold	RMSE	MAE
+1	18.2	13.9
+2	17.8	14.2
+3	18.0	13.7
+4	17.5	13.5
+5	18.1	14.0
+Avg	17.9 ± 0.3	13.9 ± 0.3
+
+📋 Example Output
+unit	cycle	RUL_pred	risk
+3	115	22.1	🔴 RED
+5	87	61.3	🟠 AMBER
+7	140	124.9	🟢 GREEN
+
+🔍 Interpretation:
+Lower predicted RUL → higher maintenance priority.
+Use charts to confirm degradation patterns.
+
+🧰 Troubleshooting
+Issue	Fix
+FileNotFoundError	Ensure files are in data/raw/.
+mean_squared_error got unexpected keyword 'squared'	Use latest scikit-learn or compute RMSE manually.
+Streamlit warning: ScriptRunContext missing	Launch with streamlit run app/streamlit_app.py.
+“No feature overlap” error	Ensure dataset columns match CMAPSS schema (unit, cycle, op1..op3, s1..s21).
+
+🧱 Technologies
+Language: Python 3.x
+Libraries: pandas, numpy, scikit-learn, xgboost, joblib, matplotlib, plotly, streamlit
+Environment: Windows
+Version Control: Git + GitHub
+
+🧩 ML Concepts
+Time-series feature engineering (lags, rolling stats)
+
+Grouped cross-validation (avoid leakage)
+
+Gradient boosting regression
+
+Feature scaling & standardization
+
+Maintenance risk mapping via RUL thresholds
+
+🌐 Deployment (Optional via Hugging Face Spaces)
+Steps
+
+Create a new Hugging Face Space
+
+Select SDK: Streamlit
+
+Connect your GitHub repo
+
+Default command:
+
+bash
+Copy code
+streamlit run app/streamlit_app.py
+Benefit: Shareable live demo for recruiters or portfolio display ✨
+
+🔮 Future Improvements
+Support CMAPSS FD002–FD004 (multi-condition)
+
+Add SHAP feature explainability
+
+Conformal prediction for uncertainty bounds
+
+Asymmetric loss (penalize under-prediction)
+
+Alerting system (Slack/email) for red units
+
+Compare with sequence models (LSTM, Transformer)
+
+🤝 Contributing
+This is a solo portfolio project, but contributions are welcome!
+Feel free to fork, improve, and submit PRs.
+Please avoid committing large raw datasets.
+
+👤 Author
+Abdul
+🎓 Computer Science Graduate
+💼 GitHub Profile
+🖥️ Project Type: Machine Learning Portfolio Project (Windows)
+
+⚖️ License
+MIT License © 2025 Abdul
+sql
+Copy code
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the “Software”), to deal
+in the Software without restriction...
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND.
+🙏 Acknowledgments
+NASA Prognostics Data Repository (CMAPSS)
+
+scikit-learn, XGBoost, pandas, Streamlit open-source teams
+
+Data science community for shared knowledge & tutorials
+
+💡 “Predict failures before they happen — save time, money, and engines.”

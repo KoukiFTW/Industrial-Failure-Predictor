@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.joblib
+.venv/
+env/
+*.ipynb_checkpoints
+
+# Data
+data/data/raw/*
+!data/data/raw/.gitkeep
+data/data/processed/*
+models/*
+!models/.gitkeep
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/

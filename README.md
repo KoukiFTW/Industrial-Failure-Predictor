@@ -4,6 +4,16 @@ Predict Remaining Useful Life (RUL) from multivariate sensor time‑series (e.g.
 
 ---
 
+## Introduction
+
+Industrial Failure Predictor is a machine learning–based system designed to forecast when industrial machines, such as jet engines, are likely to fail. Using real sensor data collected over time — including readings like temperature, pressure, and vibration — the system analyzes performance patterns to estimate the Remaining Useful Life (RUL) of each component.
+
+Built around NASA’s C-MAPSS turbofan engine dataset, the project implements a complete predictive maintenance pipeline: it automatically cleans and processes the data, engineers meaningful features, trains advanced models such as XGBoost, and delivers real-time insights through an interactive Streamlit web application.
+
+By visualizing how an engine’s condition changes over time and predicting how long it can safely operate, the Industrial Failure Predictor enables smarter maintenance decisions. In short, it’s a predictive maintenance tool that helps organizations detect early signs of failure, minimize unplanned downtime, and optimize operational costs.
+
+---
+
 ## 🚀 Project Overview
 
 This repository trains and serves machine‑learning models that estimate the **Remaining Useful Life (RUL)** for industrial equipment from time‑stamped sensor readings. It provides:

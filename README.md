@@ -63,6 +63,7 @@ Industrial-Failure-Predictor-main/
 │  ├─ train_baseline.py         # Baseline training (Ridge/XGB)
 │  ├─ train_fe.py               # Feature‑engineered XGB training
 │  ├─ infer_baseline.py         # Inference for baseline model
+│  ├─ test_evaluate.py          # Evaluate RUL
 │  └─ infer_fe.py               # Inference for FE model
 ├─ requirements.txt             # Python dependencies
 └─ .gitignore

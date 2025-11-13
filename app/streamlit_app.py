@@ -1,61 +1,69 @@
 from pathlib import Path
 import sys
+
 import numpy as np
 import pandas as pd
 import joblib
 import xgboost as xgb
-import streamlit as st
 import matplotlib.pyplot as plt
+import streamlit as st
 
-# =====================================================
-# PATH SETUP
-# =====================================================
+# -------------------------------------------------
+# Paths and imports
+# -------------------------------------------------
 APP_DIR = Path(__file__).resolve().parent
 PROJ_DIR = APP_DIR.parent
 SRC_DIR = PROJ_DIR / "src"
 MODELS_DIR = PROJ_DIR / "models"
 DATA_DIR = PROJ_DIR / "data" / "raw"
 
+# Make sure we can import from src/
 if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
 
+from dataload import load_fd_file
 from features import build_features
 
-# =====================================================
-# STREAMLIT CONFIG
-# =====================================================
+# -------------------------------------------------
+# Streamlit page setup
+# -------------------------------------------------
 st.set_page_config(
-    page_title="Machine Health Dashboard",
-    page_icon="🛠️",
+    page_title="Machine Health Monitor",
     layout="wide"
 )
 
-st.title("🛠️ Machine Health Dashboard")
-st.write(
+st.title("🛠️ Machine Health Monitor")
+st.markdown(
     """
-This dashboard estimates **how much life is left** in each engine based on its sensor data.
+This tool estimates **how much life is left** in each engine based on its sensor readings.
 
-It is designed to be **simple, clear, and easy to understand**:
-
-- Each row represents **one engine**  
-- The app estimates **remaining life (in cycles)**  
-- Engines are classified into **green, yellow, and red** based on health  
+- Each row represents **one engine**.
+- The app estimates **remaining life in cycles**.
+- Engines are grouped into **Green / Amber / Red** risk levels.
 """
 )
 
 st.markdown("---")
 
-# =====================================================
-# LOAD MODEL
-# =====================================================
+# -------------------------------------------------
+# Load model artifacts
+# -------------------------------------------------
 preproc_path = MODELS_DIR / "preproc.joblib"
 model_path = MODELS_DIR / "xgb_rul_fd001.json"
 
-if not preproc_path.exists() or not model_path.exists():
+@st.cache_data(show_spinner=False)
+def _artifacts_exist():
+    return preproc_path.exists() and model_path.exists()
+
+if not _artifacts_exist():
     st.error(
-        "Model files not found.\n"
-        "Please train the model first:\n\n"
-        "`cd src`\n`python train_fe.py`"
+        "The trained model files were not found.\n\n"
+        "Please train the model first by running in a terminal:\n\n"
+        "```bash\n"
+        "cd src\n"
+        "python train_fe.py\n"
+        "```\n"
+        "This will create `models/preproc.joblib` and `models/xgb_rul_fd001.json`."
     )
     st.stop()
 
@@ -66,159 +74,249 @@ feature_cols = meta["features"]
 model = xgb.Booster()
 model.load_model(str(model_path))
 
-# =====================================================
-# 1) DATA INPUT
-# =====================================================
-st.header("1. Upload Engine Data")
+# -------------------------------------------------
+# 1) Choose data
+# -------------------------------------------------
+st.header("1. Choose data to analyse")
 
-st.write(
+st.markdown(
     """
-Upload engine sensor data in CSV or TXT format.  
-If no file is uploaded, the dashboard uses a built-in example dataset.
+You can either:
+
+- **Upload a file** with engine sensor readings, or  
+- Use the built-in **example dataset** from the NASA engine simulation.
+
+The file should have columns like:  
+`unit, cycle, op1, op2, op3, s1, s2, ..., s21`
 """
 )
 
-uploaded = st.file_uploader("Upload a sensor data file", type=["csv", "txt"])
-
-if uploaded:
-    df = pd.read_csv(uploaded, sep=r"\s+|,", engine="python", header=None)
-    st.success("File uploaded successfully.")
-else:
-    example_path = DATA_DIR / "test_FD001.txt"
-    df = pd.read_csv(example_path, sep=r"\s+", header=None)
-    st.info("Using example dataset (test_FD001.txt).")
-
-# Assign column names
-cols = ["unit", "cycle"] + [f"op{i}" for i in range(1, 4)] + [f"s{i}" for i in range(1, 22)]
-df.columns = cols[:df.shape[1]]
-
-with st.expander("Show raw data"):
-    st.dataframe(df.head(50), height=250, use_container_width=True)
-
-# =====================================================
-# 2) PREDICT REMAINING LIFE
-# =====================================================
-st.header("2. Remaining Life Prediction")
-
-with st.spinner("Analysing data..."):
-    df_feat = build_features(df)
-
-    valid_cols = [c for c in feature_cols if c in df_feat.columns]
-    X = scaler.transform(df_feat[valid_cols])
-    df_feat["RUL_pred"] = model.predict(xgb.DMatrix(X))
-
-# Take the latest cycle per engine
-latest = df_feat.groupby("unit")["cycle"].idxmax()
-summary = df_feat.loc[latest, ["unit", "cycle", "RUL_pred"]].sort_values("RUL_pred")
-
-summary["risk"] = pd.cut(
-    summary["RUL_pred"],
-    bins=[-1, 30, 75, 1e9],
-    labels=["🔴 CRITICAL", "🟠 WARNING", "🟢 HEALTHY"]
+uploaded = st.file_uploader(
+    "Upload engine data (CSV or space-separated text)",
+    type=["csv", "txt"]
 )
 
-# Human-friendly names
+if uploaded is not None:
+    df = pd.read_csv(uploaded, sep=r"\s+|,", engine="python", header=None)
+    st.success("✅ File uploaded and loaded.")
+else:
+    fallback = DATA_DIR / "train_FD001.txt"
+    if not fallback.exists():
+        st.warning(
+            "No file uploaded and no example dataset found at `data/raw/train_FD001.txt`.\n"
+            "Please upload a CMAPSS-style file with engine data."
+        )
+        st.stop()
+    df = pd.read_csv(fallback, sep=r"\s+", header=None)
+    st.info("ℹ️ Using built-in example file: `data/raw/train_FD001.txt`")
+
+# Assign CMAPSS FD001 column names
+cols = ["unit", "cycle"] + [f"op{i}" for i in range(1, 4)] + [f"s{i}" for i in range(1, 22)]
+df.columns = cols[: df.shape[1]]
+
+with st.expander("Show raw data (for reference)", expanded=False):
+    st.dataframe(df.head(50), width="stretch")
+
+# -------------------------------------------------
+# 2) Predict remaining life for each engine
+# -------------------------------------------------
+st.header("2. Estimated remaining life for each engine")
+
+with st.spinner("Analysing sensor trends and estimating remaining life..."):
+    df_feat = build_features(df).copy()
+
+    # Make sure we only use features that the model knows
+    use_cols = [c for c in feature_cols if c in df_feat.columns]
+    if not use_cols:
+        st.error(
+            "The model could not find any matching features in the data.\n"
+            "Please double-check that your file has columns like: unit, cycle, op1..op3, s1..s21."
+        )
+        st.stop()
+
+    X = scaler.transform(df_feat[use_cols].values)
+    d = xgb.DMatrix(X)
+    df_feat["RUL_pred"] = model.predict(d)
+
+# Get the most recent reading for each engine
+latest_idx = df_feat.groupby("unit")["cycle"].idxmax()
+summary = df_feat.loc[latest_idx, ["unit", "cycle", "RUL_pred"]].sort_values("RUL_pred").reset_index(drop=True)
+
+# Assign risk bands based on remaining life
+summary["risk"] = pd.cut(
+    summary["RUL_pred"],
+    bins=[-1, 30, 75, 1e12],
+    labels=["RED (Critical)", "AMBER (Monitor)", "GREEN (Healthy)"]
+)
+
+# Create a more human-friendly view
 display = summary.rename(
     columns={
         "unit": "Engine ID",
-        "cycle": "Last Recorded Cycle",
-        "RUL_pred": "Estimated Remaining Life (cycles)",
-        "risk": "Health Status"
+        "cycle": "Current cycle (time)",
+        "RUL_pred": "Estimated remaining life (cycles)"
     }
 )
 
-st.write(
+st.markdown(
     """
-The table below shows the **latest health estimate** for each engine:
+Each row below is **one engine**:
 
-- **Remaining Life (cycles)** = how long the engine may run before failing  
-- **Health Status** = color-coded risk level  
+- **Estimated remaining life (cycles)**: how many cycles it can still run, based on sensor history.  
+- **Risk level**:
+  - 🟥 **RED (Critical)** – consider immediate inspection or maintenance  
+  - 🟧 **AMBER (Monitor)** – keep an eye on it  
+  - 🟩 **GREEN (Healthy)** – no urgent action needed  
 """
 )
 
-st.dataframe(display, height=300, use_container_width=True)
+st.dataframe(display, width="stretch")
 
-# =====================================================
-# 3) ENGINE-LEVEL VIEW
-# =====================================================
-st.header("3. Inspect a Specific Engine")
+# -------------------------------------------------
+# 3) Drill down into a single engine
+# -------------------------------------------------
+st.header("3. Look at one engine in detail")
 
-engine_list = display["Engine ID"].tolist()
-chosen_engine = st.selectbox("Select an engine:", engine_list)
+if len(summary) == 0:
+    st.warning("No engines found in the processed data.")
+    st.stop()
 
-engine_df = df_feat[df_feat["unit"] == chosen_engine].sort_values("cycle")
+engine_ids = display["Engine ID"].tolist()
+selected_engine = st.selectbox("Choose an engine to inspect:", engine_ids)
 
-st.write("### Remaining Life Over Time")
-st.line_chart(
-    engine_df.set_index("cycle")[["RUL_pred"]].rename(
-        columns={"RUL_pred": "Estimated Remaining Life"}
-    )
+u = df_feat[df_feat["unit"] == selected_engine].sort_values("cycle")
+
+st.markdown(
+    f"""
+You are looking at **Engine {selected_engine}**.
+
+The chart below shows how the **estimated remaining life** changes over time
+as the engine accumulates more operating cycles.
+"""
 )
 
-available_sensors = [c for c in df.columns if c.startswith("s")]
-default_sensors = ["s2", "s3", "s4"]
+life_chart_data = u.set_index("cycle")[["RUL_pred"]].rename(
+    columns={"RUL_pred": "Estimated remaining life (cycles)"}
+)
+st.line_chart(life_chart_data)
 
-picked = st.multiselect(
-    "Show sensor trends:",
-    options=available_sensors,
-    default=[s for s in default_sensors if s in available_sensors]
+sensor_choices = [c for c in df.columns if c.startswith("s")]
+default_sensors = [s for s in ["s2", "s3", "s4"] if s in sensor_choices][:3]
+
+st.markdown(
+    """
+You can also see how specific sensor readings change over time.
+This helps connect the **sensor behaviour** with the **remaining life estimate**.
+"""
 )
 
-if picked:
-    st.write("### Sensor Trends")
-    st.line_chart(engine_df.set_index("cycle")[picked])
+picked_sensors = st.multiselect(
+    "Choose sensors to display (optional):",
+    options=sensor_choices,
+    default=default_sensors
+)
 
-# =====================================================
-# 4) DOWNLOAD SUMMARY
-# =====================================================
-st.header("4. Download Summary Report")
+if picked_sensors:
+    sensor_chart_data = u.set_index("cycle")[picked_sensors]
+    st.line_chart(sensor_chart_data)
+
+# -------------------------------------------------
+# 4) Download report
+# -------------------------------------------------
+st.header("4. Download summary for reporting")
+
+st.markdown(
+    """
+You can download the current engine health summary as a CSV file
+and share it with your team or attach it to reports.
+"""
+)
 
 st.download_button(
-    "📥 Download Engine Summary (CSV)",
+    "⬇️ Download engine health summary (CSV)",
     data=display.to_csv(index=False),
-    file_name="engine_summary.csv",
+    file_name="engine_health_summary.csv",
     mime="text/csv"
 )
 
-# =====================================================
-# 5) OPTIONAL: TECHNICAL MODEL ACCURACY
-# =====================================================
-st.header("5. Technical: Model Accuracy (Optional)")
+# -------------------------------------------------
+# 5) Model accuracy on test data (for curious users)
+# -------------------------------------------------
+st.header("5. How accurate is this model? (optional technical section)")
 
-st.write(
+st.markdown(
     """
-This section shows how accurate the model is using a separate test dataset  
-that includes **true actual values** of remaining engine life.
+This section is optional and intended for users who want to understand how well
+the model performs on a separate test dataset.
+
+We use a dedicated test set (not shown above) with known remaining life values.
+We then compare the model's predictions to those true values.
 """
 )
 
-results_path = MODELS_DIR / "test_results_fd001.csv"
+test_results_path = MODELS_DIR / "test_results_fd001.csv"
 
-if not results_path.exists():
+if not test_results_path.exists():
     st.info(
-        "Test evaluation file not found.\n"
-        "To generate it:\n\n"
-        "`cd src`\n`python test_evaluate.py`"
+        "Test evaluation file not found.\n\n"
+        "To generate it, run this once in a terminal:\n\n"
+        "```bash\n"
+        "cd src\n"
+        "python test_evaluate.py\n"
+        "```\n"
+        "After that, refresh this page."
     )
 else:
-    test_res = pd.read_csv(results_path)
+    test_res = pd.read_csv(test_results_path)
 
-    y_true = test_res["RUL_true"]
-    y_pred = test_res["RUL_pred_adjusted"]
+    if {"RUL_true", "RUL_pred_adjusted"}.issubset(test_res.columns):
+        y_true = test_res["RUL_true"].values
+        y_pred = test_res["RUL_pred_adjusted"].values
 
-    rmse = np.sqrt(((y_true - y_pred) ** 2).mean())
-    mae = np.mean(np.abs(y_true - y_pred))
+        rmse = np.sqrt(((y_true - y_pred) ** 2).mean())
+        mae = np.abs(y_true - y_pred).mean()
 
-    st.write(f"**Average Error (RMSE):** {rmse:.2f} cycles")
-    st.write(f"**Average Absolute Error (MAE):** {mae:.2f} cycles")
+        st.markdown(
+            f"""
+**Test accuracy (on unseen data):**
 
-    fig, ax = plt.subplots()
-    ax.scatter(y_true, y_pred)
-    ax.plot([0, max(y_true)], [0, max(y_true)], "r--")
-    ax.set_xlabel("True Remaining Life")
-    ax.set_ylabel("Predicted Remaining Life")
-    ax.set_title("Predicted vs True Remaining Life")
-    ax.grid(True)
-    st.pyplot(fig)
+- Average error (RMSE): **{rmse:.2f} cycles**  
+- Average absolute error (MAE): **{mae:.2f} cycles**  
 
-st.caption("Simple, clear, and practical machine health dashboard. Built with Streamlit.")
+This means that, on average, the model's estimate of remaining life
+is within roughly **{mae:.0f}–{rmse:.0f} cycles** of the true value.
+"""
+        )
+
+        st.markdown("**True vs predicted remaining life for test engines:**")
+        st.dataframe(
+            test_res.head(10).rename(
+                columns={
+                    "unit": "Engine ID",
+                    "RUL_true": "True remaining life (cycles)",
+                    "RUL_pred_adjusted": "Predicted remaining life (cycles)"
+                }
+            ),
+            width="stretch"
+        )
+
+        fig, ax = plt.subplots()
+        ax.scatter(y_true, y_pred, alpha=0.7)
+        min_val = min(y_true.min(), y_pred.min())
+        max_val = max(y_true.max(), y_pred.max())
+        ax.plot([min_val, max_val], [min_val, max_val], "r--", label="Perfect prediction")
+        ax.set_xlabel("True remaining life (cycles)")
+        ax.set_ylabel("Predicted remaining life (cycles)")
+        ax.set_title("Model accuracy on test engines")
+        ax.legend()
+        ax.grid(True)
+
+        st.pyplot(fig)
+    else:
+        st.warning(
+            "The file `test_results_fd001.csv` does not have the expected columns.\n"
+            "Please re-run `python test_evaluate.py` from the `src` folder."
+        )
+
+st.markdown("---")
+st.caption("Built as a learning and portfolio project – combining machine learning with a practical maintenance use case.")
